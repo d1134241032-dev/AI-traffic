@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>路口安全檢測｜有號誌 vs 無號誌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --asphalt:#1d2125; --paper:#eef0ea; --line:#f4f3ec; --amber:#f2b01e;
+    --safe:#1e8a5a; --danger:#d23a2f; --ink:#1d2125; --muted:#5d646b; --card:#fff;
+  }
+  *{box-sizing:border-box;margin:0}
+  html{scroll-behavior:smooth}
+  body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;background:var(--paper);color:var(--ink);line-height:1.7}
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px}
+
+  /* Hero: road surface with crosswalk stripes */
+  .hero{background:var(--asphalt);color:var(--line);padding:72px 0 0;position:relative}
+  .hero h1{font-size:clamp(34px,7vw,64px);font-weight:900;line-height:1.15;letter-spacing:.01em;max-width:13em}
+  .hero p{margin-top:18px;max-width:34em;color:#c9ccc8;font-size:17px}
+  .hero a.go{display:inline-block;margin:28px 0 56px;background:var(--amber);color:var(--asphalt);font-weight:700;padding:12px 24px;border-radius:6px;text-decoration:none}
+  .hero a.go:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,label.drop:focus-within{outline:3px solid var(--amber);outline-offset:3px}
+  .zebra{height:46px;background:repeating-linear-gradient(90deg,var(--line) 0 54px,transparent 54px 96px)}
+
+  section{padding:64px 0}
+  h2{font-size:28px;font-weight:900;margin-bottom:8px}
+  .lead{color:var(--muted);max-width:36em}
+
+  /* Comparison table */
+  .tablewrap{margin-top:28px;overflow-x:auto;background:var(--card);border-radius:10px}
+  table{width:100%;border-collapse:collapse;font-size:15px;min-width:620px}
+  th,td{text-align:left;padding:16px 18px;vertical-align:top;border-bottom:1px solid #e1e4dc}
+  thead th{background:#e4e7df;font-weight:700}
+  th.us{background:var(--amber);color:var(--asphalt)}
+  td:first-child{font-weight:700;white-space:nowrap}
+  td.us{background:#fff8e6;font-weight:500}
+  tbody tr:last-child td{border-bottom:0}
+
+  /* Upload (last section) */
+  #upload{background:var(--asphalt);color:var(--line)}
+  #upload .lead{color:#c9ccc8}
+  .drop{display:block;margin-top:24px;border:3px dashed #6c737a;border-radius:12px;padding:44px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+  .drop:hover,.drop.over{border-color:var(--amber);background:#262b30}
+  .drop b{display:block;font-size:20px}
+  .drop span{color:#aab0b5;font-size:14px}
+  .drop input{position:absolute;opacity:0;width:1px;height:1px}
+  details{margin-top:18px;color:#c9ccc8;font-size:14px}
+  summary{cursor:pointer;width:max-content}
+  .cfg{display:grid;grid-template-columns:1fr 1fr 150px;gap:10px;margin-top:12px}
+  .cfg label{display:block;font-size:12px;color:#aab0b5}
+  .cfg input,.cfg select{width:100%;margin-top:2px;padding:9px 10px;border-radius:6px;border:1px solid #4a5157;background:#14171a;color:#fff;font:inherit;font-size:14px}
+
+  #loading{display:none;margin-top:28px;text-align:center;color:var(--amber);font-weight:500}
+  #error{display:none;margin-top:24px;padding:14px 16px;border-radius:8px;background:#3a1b18;border:1px solid var(--danger);color:#ffd8d3;font-size:15px}
+  #result{display:none;margin-top:28px}
+  .stage{background:#000;border-radius:10px;overflow:hidden}
+  canvas{display:block;width:100%;height:auto}
+  .verdict{margin-top:16px;border-radius:10px;padding:20px 22px;color:#fff}
+  .verdict.danger{background:var(--danger)} .verdict.safe{background:var(--safe)} .verdict.none{background:#3b4248}
+  .verdict h3{font-size:22px;font-weight:900}
+  .verdict p{margin-top:4px;font-size:15px;opacity:.95}
+  .meta{margin-top:10px;font-size:13px;color:#aab0b5}
+  button.again{margin-top:18px;background:transparent;color:var(--line);border:2px solid #6c737a;border-radius:6px;padding:9px 20px;font:inherit;font-weight:700;cursor:pointer}
+  button.again:hover{border-color:var(--amber)}
+  footer{background:#14171a;color:#8b9298;font-size:13px;padding:20px 0;text-align:center}
+
+  .ai-capability{margin-bottom:38px;padding:28px 30px;border:1px solid #454b50;border-radius:12px;background:#262b30}
+  .ai-capability h2{margin-bottom:8px;font-size:30px}
+  .ai-capability .lead{color:#c9ccc8;max-width:none}
+  .ai-types{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px}
+  .ai-type{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:9px;background:#1d2125;border:1px solid #454b50}
+  .ai-type strong{display:block;font-size:17px;color:#fff}
+  .ai-type span:not(.ai-dot){display:block;margin-top:2px;color:#aab0b5;font-size:13px}
+  .ai-dot{width:11px;height:11px;flex:0 0 11px;border-radius:50%}
+  .ai-dot.danger{background:var(--danger)} .ai-dot.safe{background:var(--safe)}
+  .now{margin-top:24px;padding:16px 18px;border-radius:10px;background:#262b30}
+  .now .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .now b{font-size:14px;color:#aab0b5;font-weight:500}
+  .chip{padding:5px 14px;border-radius:99px;border:2px solid #4a5157;font-size:14px;font-weight:700;color:#aab0b5}
+  .chip.on.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  .chip.on.safe{background:var(--safe);border-color:var(--safe);color:#fff}
+  #nowText{margin-top:10px;font-size:17px;font-weight:700;color:var(--line)}
+  .rules{margin-top:16px;background:var(--card);color:var(--ink);border-radius:10px;padding:22px 24px;border-left:8px solid var(--muted)}
+  .rules.danger{border-color:var(--danger)} .rules.safe{border-color:var(--safe)}
+  .rules h3{font-size:19px;font-weight:900;margin-bottom:10px}
+  .rules h4{font-size:15px;font-weight:700;margin:14px 0 4px}
+  .rules ul{padding-left:20px;font-size:15px}
+  .rules li{margin:4px 0}
+  .rules small{display:block;margin-top:14px;color:var(--muted);font-size:12px}
+  @media (max-width:640px){.cfg{grid-template-columns:1fr}.ai-types{grid-template-columns:1fr}.ai-capability{padding:22px 20px}.hero{padding-top:48px}.zebra{height:34px}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>SafeRoad AI：把路口看得更清楚</h1>
+    <p>上傳路口照片，AI 判斷它是有號誌還是無號誌路口，並說明對應的交通安全規範。</p>
+    <a class="go" href="#upload">上傳照片檢測</a>
+  </div>
+  <div class="zebra" aria-hidden="true"></div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>為什麼社群需要 SafeRoad AI？</h2>
+    <p class="lead">傳統的科技執法設備造價高昂，難以普及至所有易肇事路口與偏鄉。我們透過軟體技術打破硬體限制。</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>比較面向</th><th>傳統科技執法 / 人工站崗</th><th class="us">SafeRoad AI (開源公益方案)</th></tr></thead>
+        <tbody>
+          <tr><td>建置成本與硬體</td><td>需採購數百萬專屬攝影機與主機，建置期長。</td><td class="us">無硬體綁約，可直接串接路口既有 RTSP 監視器。</td></tr>
+          <tr><td>人力需求</td><td>高度依賴員警路口站崗，或人工回看監視器畫面。</td><td class="us">AI 24 小時自動化監控，減輕警力與導護志工負擔。</td></tr>
+          <tr><td>即時性與告警</td><td>事故發生後才調閱畫面釐清肇責。</td><td class="us">秒級辨識，可連動現場 LED 警示看板或廣播提醒。</td></tr>
+          <tr><td>數據擴展性</td><td>資料零散，難以統整各路口的違規熱點趨勢。</td><td class="us">自動生成車流、人流與違規熱點分析報表，輔助交通工程改善。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="upload">
+  <div class="wrap">
+    <div class="ai-capability">
+      <h2>核心 AI 辨識能力</h2>
+      <p class="lead">針對台灣常見交通亂象訓練之專屬模型，適用於各種天候與光源環境。</p>
+      <div class="ai-types">
+        <div class="ai-type"><span class="ai-dot danger"></span><div><strong>無號誌路口</strong><span>辨識沒有紅綠燈管制的路口</span></div></div>
+        <div class="ai-type"><span class="ai-dot safe"></span><div><strong>號誌路口</strong><span>辨識設有紅綠燈管制的路口</span></div></div>
+      </div>
+    </div>
+
+    <h2>上傳路口照片</h2>
+    <p class="lead">照片只會傳送到你設定的 Roboflow 模型，不會存到其他地方。</p>
+
+    <div class="now">
+      <div class="row">
+        <b>目前判斷項目</b>
+        <span class="chip danger" data-k="unsignalized_intersection">無號誌路口（危險）</span>
+        <span class="chip safe" data-k="signalized_intersection">有號誌路口（安全）</span>
+      </div>
+      <div id="nowText">目前判斷：尚未上傳照片</div>
+    </div>
+
+    <label class="drop" id="drop" tabindex="0">
+      <b>點擊選擇，或把圖片拖曳到這裡</b>
+      <span>支援 JPG、PNG、WebP</span>
+      <input type="file" id="file" accept="image/*">
+    </label>
+
+    <details id="settings">
+      <summary>Roboflow 設定</summary>
+      <div class="cfg">
+        <label>Model ID（含版本，例如 my-project/1）
+          <input id="modelId" type="text" placeholder="my-project/1" autocomplete="off">
+        </label>
+        <label>API Key（Publishable Key）
+          <input id="apiKey" type="password" placeholder="貼上你的 API Key" autocomplete="off">
+        </label>
+        <label>模型類型
+          <select id="task">
+            <option value="detect">物件偵測</option>
+            <option value="classify">圖片分類</option>
+          </select>
+        </label>
+      </div>
+    </details>
+
+    <div id="loading">AI 分析中，請稍候…</div>
+    <div id="error" role="alert"></div>
+
+    <div id="result">
+      <div class="stage"><canvas id="canvas"></canvas></div>
+      <div class="verdict" id="verdict"></div>
+      <div class="meta" id="meta"></div>
+      <div class="rules" id="rules" style="display:none"></div>
+      <button class="again" id="again" type="button">再測一張</button>
+    </div>
+  </div>
+</section>
+
+<footer>路口安全檢測展示頁｜AI 判斷僅供參考，實際通行請以現場號誌與交通規則為準</footer>
+
+<script>
+/* ====== 在這裡填入你的 Roboflow 設定（也可以在網頁上的「Roboflow 設定」填） ====== */
+const CONFIG = {
+  MODEL_ID: '',          // 例如 'traffic-safety/1'（專案名稱/版本號）
+  API_KEY: '',           // Roboflow Publishable API Key
+  TASK: 'detect',        // 'detect' = 物件偵測；'classify' = 圖片分類
+  MIN_CONFIDENCE: 0.4,   // 低於這個信心值的結果會被忽略
+  MAX_SIZE: 1280         // 上傳前將圖片縮到最長邊不超過此像素，加快速度
+};
+
+/* 類別名稱 → 顯示資訊 */
+const CLASSES = {
+  unsignalized_intersection: { kind:'danger', color:'#d23a2f', name:'無號誌路口',
+    title:'危險：這是無號誌路口',
+    text:'路口沒有紅綠燈，車輛與行人需自行判斷禮讓。請減速、停看聽，行人務必確認來車停妥再穿越。',
+    drv:['行近路口要減速慢行，隨時準備煞停。',
+         '支線道車應暫停讓幹線道車先行；同為幹線或支線時，少線道車讓多線道車，線道數相同則左方車讓右方車（道路交通安全規則第 102 條）。',
+         '行近行人穿越道或可供行人穿越的路口，有行人穿越時須暫停讓行人先行，未停讓可處 1,200 至 6,000 元罰鍰，致人傷亡處罰更重（處罰條例第 44 條）。',
+         '「停讓」是完全停止，不是慢慢滑行；車頭離行人不足 3 公尺就可能被認定為未禮讓。'],
+    ped:['穿越前先停、看、聽，確認來車已完全停妥再走。','走斑馬線，不要在路口死角或視線不良處穿越。','過馬路時不要邊走邊看手機。'] },
+  signalized_intersection:   { kind:'safe',   color:'#1e8a5a', name:'有號誌路口',
+    title:'安全：這是有號誌路口',
+    text:'路口有紅綠燈管制。請遵守燈號，綠燈時仍要留意轉彎或闖紅燈的車輛。',
+    drv:['依號誌指示行駛；紅燈要停在停止線前，闖紅燈依處罰條例第 53 條處罰。',
+         '黃燈亮時，尚未進入路口的車輛應停止，不要搶黃燈。',
+         '綠燈轉彎時，轉彎車要讓直行車和正在穿越的行人先行，並暫停讓行（處罰條例第 44 條）。',
+         '號誌故障或無人指揮時，視同無號誌路口，減速並依讓行規則通過。'],
+    ped:['依行人號誌穿越：綠燈（小綠人）才通行，綠燈閃動時不要開始穿越。','紅燈不可穿越，違規行人依處罰條例第 78 條處罰。','即使綠燈，也要留意轉彎和闖紅燈的車輛。'] }
+};
+
+const $ = id => document.getElementById(id);
+const drop = $('drop'), fileInput = $('file'), canvas = $('canvas'), ctx = canvas.getContext('2d');
+
+$('modelId').value = CONFIG.MODEL_ID;
+$('apiKey').value  = CONFIG.API_KEY;
+$('task').value    = CONFIG.TASK;
+
+/* 判斷類別：注意 "unsignalized" 也包含 "signalized"，要先比對無號誌 */
+function matchClass(name){
+  const n = String(name).toLowerCase();
+  if (n.includes('unsignalized') || n.includes('unsignalised')) return 'unsignalized_intersection';
+  if (n.includes('signalized') || n.includes('signalised')) return 'signalized_intersection';
+  return null;
+}
+
+/* 讀圖並縮小，回傳 canvas 與 base64 */
+function loadImage(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('讀取檔案失敗'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('這個檔案不是可用的圖片'));
+      img.onload = () => {
+        const s = Math.min(1, CONFIG.MAX_SIZE / Math.max(img.naturalWidth, img.naturalHeight));
+        canvas.width  = Math.round(img.naturalWidth * s);
+        canvas.height = Math.round(img.naturalHeight * s);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.9).split(',')[1]);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* 呼叫 Roboflow，統一回傳 [{cls, conf, box?}] */
+async function infer(base64){
+  const modelId = $('modelId').value.trim();
+  const apiKey  = $('apiKey').value.trim();
+  const task    = $('task').value;
+  if (!modelId || !apiKey){
+    $('settings').open = true;
+    throw new Error('請先在「Roboflow 設定」填入 Model ID 與 API Key。');
+  }
+  const host = task === 'classify' ? 'classify' : 'detect';
+  const url = `https://${host}.roboflow.com/${modelId}?api_key=${encodeURIComponent(apiKey)}&confidence=${Math.round(CONFIG.MIN_CONFIDENCE*100)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: base64
+  });
+  if (!res.ok){
+    if (res.status === 401 || res.status === 403) throw new Error('API Key 無效或沒有權限，請檢查 Key。');
+    if (res.status === 404) throw new Error('找不到模型，請確認 Model ID 含版本號（例如 my-project/1）以及模型類型是否正確。');
+    throw new Error(`Roboflow 回傳錯誤 (${res.status})`);
+  }
+  const json = await res.json();
+  let preds = json.predictions || [];
+  if (!Array.isArray(preds)){            // 單標籤分類：{ 類別名: { confidence } }
+    preds = Object.entries(preds).map(([k,v]) => ({ class:k, confidence:v.confidence }));
+  }
+  return preds.map(p => ({
+    cls: p.class, conf: p.confidence,
+    box: (p.width != null) ? [p.x - p.width/2, p.y - p.height/2, p.width, p.height] : null
+  }));
+}
+
+function draw(items){
+  const fs = Math.max(16, Math.round(canvas.width * 0.022));
+  ctx.font = `bold ${fs}px sans-serif`; ctx.textBaseline = 'top';
+  items.forEach(it => {
+    if (!it.box) return;
+    const info = CLASSES[it.key], [x,y,w,h] = it.box;
+    const label = `${info.name} ${Math.round(it.conf*100)}%`, pad = fs*0.3;
+    ctx.lineWidth = Math.max(3, Math.round(canvas.width*0.004));
+    ctx.strokeStyle = info.color; ctx.strokeRect(x,y,w,h);
+    const tw = ctx.measureText(label).width;
+    const ly = Math.max(0, y - fs - pad*2);
+    ctx.fillStyle = info.color; ctx.fillRect(x, ly, tw + pad*2, fs + pad*2);
+    ctx.fillStyle = '#fff'; ctx.fillText(label, x + pad, ly + pad);
+  });
+}
+
+/* 更新「目前判斷」狀態列與規範面板 */
+function setNow(key){
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.k === key));
+  const box = $('rules');
+  if (!key){
+    $('nowText').textContent = '目前判斷：無法判斷路口類型';
+    box.style.display = 'none'; return;
+  }
+  const info = CLASSES[key], li = a => a.map(t => `<li>${t}</li>`).join('');
+  $('nowText').textContent = `目前判斷：${info.name}（${info.kind === 'danger' ? '危險' : '安全'}）`;
+  box.className = 'rules ' + info.kind;
+  box.innerHTML = `<h3>${info.name}的交通安全規範</h3>
+    <h4>駕駛人</h4><ul>${li(info.drv)}</ul>
+    <h4>行人</h4><ul>${li(info.ped)}</ul>
+    <small>以上為規範摘要，僅供參考，實際請以交通部最新法規與現場標誌、號誌為準。</small>`;
+  box.style.display = 'block';
+}
+
+function showResult(preds, ms){
+  const items = preds
+    .map(p => ({...p, key: matchClass(p.cls)}))
+    .filter(p => p.key && p.conf >= CONFIG.MIN_CONFIDENCE)
+    .sort((a,b) => b.conf - a.conf);
+  draw(items);
+
+  const v = $('verdict');
+  if (!items.length){
+    v.className = 'verdict none';
+    v.innerHTML = '<h3>無法判斷路口類型</h3><p>沒有找到足夠信心的結果。請換一張更清楚、能看到路口全貌的照片。</p>';
+    setNow(null);
+  } else {
+    const top = items[0], info = CLASSES[top.key];
+    v.className = 'verdict ' + info.kind;
+    v.innerHTML = `<h3>${info.title}（${Math.round(top.conf*100)}%）</h3><p>${info.text}</p>`;
+    setNow(top.key);
+  }
+  const lines = items.map(i => `${CLASSES[i.key].name} ${Math.round(i.conf*100)}%`).join('、');
+  $('meta').textContent = `偵測結果：${lines || '無'}｜耗時 ${ms} ms`;
+}
+
+async function handleFile(file){
+  if (!file) return;
+  $('error').style.display = 'none';
+  $('result').style.display = 'none';
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+  $('nowText').textContent = '目前判斷：分析中…';
+  $('loading').style.display = 'block';
+  try{
+    const b64 = await loadImage(file);
+    const t0 = performance.now();
+    const preds = await infer(b64);
+    showResult(preds, Math.round(performance.now() - t0));
+    $('result').style.display = 'block';
+    $('result').scrollIntoView({behavior:'smooth', block:'nearest'});
+  }catch(err){
+    $('nowText').textContent = '目前判斷：發生錯誤';
+    $('error').textContent = err.message || '發生未知錯誤';
+    $('error').style.display = 'block';
+  }finally{
+    $('loading').style.display = 'none';
+  }
+}
+
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); } });
+$('again').addEventListener('click', () => {
+  $('result').style.display = 'none'; fileInput.value = '';
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+  $('nowText').textContent = '目前判斷：尚未上傳照片';
+  drop.scrollIntoView({behavior:'smooth', block:'center'});
+});
+</script>
+</body>
+</html>
